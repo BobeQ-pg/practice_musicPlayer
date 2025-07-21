@@ -75,6 +75,14 @@ class MusicService : Service() {
         super.onDestroy()
     }
 
+    fun stopMusicAndSelfDestruct() {
+        player?.stop()
+        player?.release()
+        player = null
+        stopForeground(true)
+        stopSelf()
+    }
+
     // --- Public methods for clients ---
     fun togglePlayPause() {
         if (player?.isPlaying == true) {

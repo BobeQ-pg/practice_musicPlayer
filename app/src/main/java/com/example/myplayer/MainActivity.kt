@@ -5,14 +5,19 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.example.myplayer.databinding.ActivityMainBinding
+import com.google.android.material.tabs.TabLayoutMediator
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
+    private val sharedViewModel: SharedViewModel by viewModels()
 
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
@@ -29,7 +34,45 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        setupViewPagerAndTabs()
+        setupOnBackPressed()
         checkPermissions()
+    }
+
+    private fun setupViewPagerAndTabs() {
+        binding.viewPager.adapter = ViewPagerAdapter(this)
+        TabLayoutMediator(binding.tabLayout, binding.viewPager) { tab, position ->
+            tab.text = when (position) {
+                0 -> "Library"
+                1 -> "Player"
+                else -> null
+            }
+        }.attach()
+    }
+
+    private fun setupOnBackPressed() {
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (binding.viewPager.currentItem == 0) {
+                    // If on the first tab, show exit confirmation
+                    showExitConfirmationDialog()
+                } else {
+                    // Otherwise, navigate to the first tab
+                    binding.viewPager.currentItem = 0
+                }
+            }
+        })
+    }
+
+    private fun showExitConfirmationDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Exit Player")
+            .setMessage("Are you sure you want to exit?")
+            .setPositiveButton("Exit") { _, _ ->
+                finish()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun checkPermissions() {
