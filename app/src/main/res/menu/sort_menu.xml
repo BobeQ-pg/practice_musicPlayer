@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/action_sort"
+        android:icon="@android:drawable/ic_menu_sort_by_size" 
+        android:title="Sort"
+        app:showAsAction="ifRoom">
+        <menu>
+            <item
+                android:id="@+id/sort_by_title"
+                android:title="Sort by Title" />
+            <item
+                android:id="@+id/sort_by_artist"
+                android:title="Sort by Artist" />
+            <item
+                android:id="@+id/sort_by_album"
+                android:title="Sort by Album" />
+        </menu>
+    </item>
+</menu>

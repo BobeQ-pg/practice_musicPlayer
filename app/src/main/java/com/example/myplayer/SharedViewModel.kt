@@ -23,6 +23,9 @@ import kotlinx.coroutines.withContext
 class SharedViewModel(application: Application) : AndroidViewModel(application) {
 
     private val folderRepository = FolderRepository(application)
+    private val sortPreferences = SortPreferences(application)
+
+    private var currentSortOrder: SortOrder = sortPreferences.getSortOrder()
 
     // --- LiveData for UI ---
     private val _songs = MutableLiveData<List<Song>>()
@@ -103,6 +106,21 @@ class SharedViewModel(application: Application) : AndroidViewModel(application) 
         loadSongsFromSelectedFolders()
     }
 
+    fun setSortOrder(sortOrder: SortOrder) {
+        currentSortOrder = sortOrder
+        sortPreferences.setSortOrder(sortOrder)
+        songs.value?.let { sortAndPostSongs(it) }
+    }
+
+    private fun sortAndPostSongs(songs: List<Song>) {
+        val sortedSongs = when (currentSortOrder) {
+            SortOrder.TITLE -> songs.sortedBy { it.title }
+            SortOrder.ARTIST -> songs.sortedBy { it.artist }
+            SortOrder.ALBUM -> songs.sortedBy { it.album }
+        }
+        _songs.postValue(sortedSongs)
+    }
+
     private fun loadSongsFromSelectedFolders() {
         _isScanning.value = true
         _songs.postValue(emptyList()) // Clear the list before scanning
@@ -119,7 +137,7 @@ class SharedViewModel(application: Application) : AndroidViewModel(application) 
             }
 
             retriever.release()
-            _songs.postValue(songList.sortedBy { it.title })
+            sortAndPostSongs(songList)
             withContext(Dispatchers.Main) {
                 _isScanning.value = false
             }
