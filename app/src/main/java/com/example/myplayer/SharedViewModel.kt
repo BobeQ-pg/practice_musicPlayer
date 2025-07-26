@@ -5,24 +5,34 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
-import android.provider.MediaStore
+import android.provider.DocumentsContract
+import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import android.content.ContentUris
+import kotlinx.coroutines.withContext
 
 class SharedViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val folderRepository = FolderRepository(application)
 
     // --- LiveData for UI ---
     private val _songs = MutableLiveData<List<Song>>()
     val songs: LiveData<List<Song>> = _songs
+
+    private val _musicFolders = MutableLiveData<Set<String>>()
+    val musicFolders: LiveData<Set<String>> = _musicFolders
+
+    private val _isScanning = MutableLiveData<Boolean>(false)
+    val isScanning: LiveData<Boolean> = _isScanning
 
     private val _nowPlaying = MutableLiveData<Song?>()
     val nowPlaying: LiveData<Song?> = _nowPlaying
@@ -49,15 +59,20 @@ class SharedViewModel(application: Application) : AndroidViewModel(application) 
 
             musicService?.onPlayerReady = {
                 _duration.postValue(musicService?.getDuration())
+                _currentPosition.postValue(musicService?.getCurrentPosition()) // Reset position for new track
                 updateProgress()
             }
             musicService?.onPlaybackStateChanged = {
                 _isPlaying.postValue(it)
-                if(it) updateProgress() // Resume progress updates when playing
+                if (it) updateProgress() // Resume progress updates when playing
             }
-            // Reflect initial state
-            _isPlaying.postValue(musicService?.isPlaying())
-            _duration.postValue(musicService?.getDuration())
+            musicService?.onTrackChanged = { _nowPlaying.postValue(it) }
+            musicService?.onPlaylistEnded = {
+                _isPlaying.postValue(false)
+                _currentPosition.postValue(0)
+                _duration.postValue(0)
+                _nowPlaying.postValue(null)
+            }
             updateProgress()
         }
 
@@ -69,57 +84,111 @@ class SharedViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     init {
-        loadSongs()
+        _musicFolders.value = folderRepository.getFolders()
+        loadSongsFromSelectedFolders()
         Intent(application, MusicService::class.java).also { intent ->
             application.bindService(intent, connection, Context.BIND_AUTO_CREATE)
         }
     }
 
-    private fun loadSongs() {
+    fun addMusicFolder(uri: Uri) {
+        folderRepository.addFolder(uri)
+        _musicFolders.value = folderRepository.getFolders()
+        loadSongsFromSelectedFolders()
+    }
+
+    fun removeMusicFolder(uri: Uri) {
+        folderRepository.removeFolder(uri)
+        _musicFolders.value = folderRepository.getFolders()
+        loadSongsFromSelectedFolders()
+    }
+
+    private fun loadSongsFromSelectedFolders() {
+        _isScanning.value = true
+        _songs.postValue(emptyList()) // Clear the list before scanning
         viewModelScope.launch(Dispatchers.IO) {
             val songList = mutableListOf<Song>()
+            val folders = folderRepository.getFolders()
             val contentResolver = getApplication<Application>().contentResolver
-            val uri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-            val projection = arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST)
-            val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.MIME_TYPE} IN (?, ?, ?, ?)"
-            val selectionArgs = arrayOf("audio/mpeg", "audio/flac", "audio/x-wav", "audio/aac")
-            val sortOrder = MediaStore.Audio.Media.TITLE + " ASC"
-            val cursor = contentResolver.query(uri, projection, selection, selectionArgs, sortOrder)
+            val retriever = MediaMetadataRetriever()
 
-            cursor?.use {
-                val idColumn = it.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-                val titleColumn = it.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
-                val artistColumn = it.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+            folders.forEach { folderUriString ->
+                val folderUri = Uri.parse(folderUriString)
+                val parent = DocumentFile.fromTreeUri(getApplication(), folderUri)
+                parent?.let { findAudioFiles(it, retriever, songList) }
+            }
 
-                while (it.moveToNext()) {
-                    val id = it.getLong(idColumn)
-                    val title = it.getString(titleColumn)
-                    val artist = it.getString(artistColumn)
-                    val contentUri = ContentUris.withAppendedId(uri, id)
-                    songList.add(Song(contentUri, title, artist))
+            retriever.release()
+            _songs.postValue(songList.sortedBy { it.title })
+            withContext(Dispatchers.Main) {
+                _isScanning.value = false
+            }
+        }
+    }
+
+    private fun findAudioFiles(parent: DocumentFile, retriever: MediaMetadataRetriever, songList: MutableList<Song>) {
+        val supportedExtensions = setOf(".mp3", ".flac", ".wav", ".ogg")
+        for (file in parent.listFiles()) {
+            if (file.isDirectory) {
+                findAudioFiles(file, retriever, songList)
+            } else {
+                val fileName = file.name ?: ""
+                if (supportedExtensions.any { fileName.endsWith(it, ignoreCase = true) }) {
+                    android.util.Log.d("SongScanner", "-> Adding ${file.name} to the list based on extension.")
+                    try {
+                        val pfd = getApplication<Application>().contentResolver.openFileDescriptor(file.uri, "r")
+                        pfd?.use {
+                            retriever.setDataSource(it.fileDescriptor)
+                            val title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) ?: file.name ?: "Unknown Title"
+                            val artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?: "Unknown Artist"
+                            val album = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM) ?: "Unknown Album"
+                            songList.add(Song(file.uri, title, artist, album))
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("SongScanner", "Failed to read metadata for ${file.uri}", e)
+                    }
                 }
             }
-            _songs.postValue(songList)
         }
     }
 
     fun playSong(song: Song) {
+        val playlist = songs.value?.filter { it.album == song.album } ?: listOf(song)
+        val songIndex = playlist.indexOf(song)
+
         _nowPlaying.value = song
         val intent = Intent(getApplication(), MusicService::class.java).apply {
             action = "PLAY"
-            putExtra("SONG_URI", song.uri.toString())
-            putExtra("SONG_TITLE", song.title)
+            putParcelableArrayListExtra("PLAYLIST", ArrayList(playlist))
+            putExtra("SONG_INDEX", songIndex)
         }
         getApplication<Application>().startService(intent)
     }
 
-    fun togglePlayPause() {
-        musicService?.togglePlayPause()
-    }
+    fun togglePlayPause() { musicService?.togglePlayPause() }
 
     fun seekTo(position: Long) {
         musicService?.seekTo(position)
+        _currentPosition.value = position
     }
+
+    fun rewind() {
+        musicService?.let {
+            val newPosition = (it.getCurrentPosition() - 10000).coerceAtLeast(0)
+            it.seekTo(newPosition)
+            _currentPosition.value = newPosition
+        }
+    }
+
+    fun fastForward() {
+        musicService?.let {
+            val newPosition = (it.getCurrentPosition() + 10000).coerceAtMost(it.getDuration())
+            it.seekTo(newPosition)
+            _currentPosition.value = newPosition
+        }
+    }
+    fun skipToNext() { musicService?.skipToNext() }
+    fun skipToPrevious() { musicService?.skipToPrevious() }
 
     private val updateSeekBarRunnable = object : Runnable {
         override fun run() {

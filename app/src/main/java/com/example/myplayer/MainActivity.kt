@@ -20,11 +20,24 @@ class MainActivity : AppCompatActivity() {
     private val sharedViewModel: SharedViewModel by viewModels()
 
     private val requestPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
-            if (isGranted) {
-                Toast.makeText(this, "Permission granted", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(this, "Permission denied, the app can't access music files.", Toast.LENGTH_LONG).show()
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+            permissions.entries.forEach { (permission, isGranted) ->
+                when (permission) {
+                    Manifest.permission.READ_MEDIA_AUDIO -> {
+                        if (isGranted) {
+                            Toast.makeText(this, "Audio permission granted", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(this, "Audio permission denied", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    Manifest.permission.POST_NOTIFICATIONS -> {
+                        if (isGranted) {
+                            Toast.makeText(this, "Notification permission granted", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(this, "Notification permission denied", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
             }
         }
 
@@ -45,6 +58,7 @@ class MainActivity : AppCompatActivity() {
             tab.text = when (position) {
                 0 -> "Library"
                 1 -> "Player"
+                2 -> "Settings"
                 else -> null
             }
         }.attach()
@@ -77,19 +91,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun checkPermissions() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            when {
-                ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.READ_MEDIA_AUDIO
-                ) == PackageManager.PERMISSION_GRANTED -> {
-                    // Permission is already granted
-                }
-                shouldShowRequestPermissionRationale(Manifest.permission.READ_MEDIA_AUDIO) -> {
-                    requestPermissionLauncher.launch(Manifest.permission.READ_MEDIA_AUDIO)
-                }
-                else -> {
-                    requestPermissionLauncher.launch(Manifest.permission.READ_MEDIA_AUDIO)
-                }
+            val permissionsToRequest = mutableListOf<String>()
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.READ_MEDIA_AUDIO)
+            }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+
+            if (permissionsToRequest.isNotEmpty()) {
+                requestPermissionLauncher.launch(permissionsToRequest.toTypedArray())
             }
         } else {
             // For older Android, you might need READ_EXTERNAL_STORAGE

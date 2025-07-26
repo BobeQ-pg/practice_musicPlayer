@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -33,7 +34,6 @@ class HomeFragment : Fragment() {
 
         val songAdapter = SongAdapter { song ->
             sharedViewModel.playSong(song)
-            // Switch to the player tab
             activity?.findViewById<ViewPager2>(R.id.viewPager)?.currentItem = 1
         }
 
@@ -44,6 +44,11 @@ class HomeFragment : Fragment() {
 
         sharedViewModel.songs.observe(viewLifecycleOwner) {
             songAdapter.submitList(it)
+        }
+
+        sharedViewModel.isScanning.observe(viewLifecycleOwner) {
+            binding.progressBar.isVisible = it
+            binding.recyclerView.isVisible = !it
         }
     }
 

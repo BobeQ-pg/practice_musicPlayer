@@ -30,8 +30,15 @@ class PlayerFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         sharedViewModel.nowPlaying.observe(viewLifecycleOwner) {
-            binding.titleTextView.text = it?.title
-            binding.artistTextView.text = it?.artist
+            if (it != null) {
+                binding.titleTextView.text = it.title
+                binding.artistTextView.text = it.artist
+            } else {
+                // Reset UI when playlist ends
+                binding.titleTextView.text = "No song selected"
+                binding.artistTextView.text = ""
+                binding.seekBar.progress = 0
+            }
         }
 
         sharedViewModel.isPlaying.observe(viewLifecycleOwner) {
@@ -49,6 +56,25 @@ class PlayerFragment : Fragment() {
 
         binding.playPauseButton.setOnClickListener {
             sharedViewModel.togglePlayPause()
+        }
+
+        binding.rewindButton.setOnClickListener {
+            // Short click on rewind goes to previous track or beginning
+            sharedViewModel.skipToPrevious()
+        }
+
+        binding.rewindButton.setOnLongClickListener {
+            sharedViewModel.rewind()
+            true // Consume the long click
+        }
+
+        binding.fastForwardButton.setOnClickListener {
+            sharedViewModel.skipToNext()
+        }
+
+        binding.fastForwardButton.setOnLongClickListener {
+            sharedViewModel.fastForward()
+            true // Consume the long click
         }
 
         binding.seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
