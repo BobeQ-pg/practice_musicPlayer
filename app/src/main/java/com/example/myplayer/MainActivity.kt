@@ -57,7 +57,7 @@ class MainActivity : AppCompatActivity() {
         TabLayoutMediator(binding.tabLayout, binding.viewPager) { tab, position ->
             tab.text = when (position) {
                 0 -> "Library"
-                1 -> "Player"
+                1 -> "Queue"
                 2 -> "Settings"
                 else -> null
             }

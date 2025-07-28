@@ -6,68 +6,82 @@
     android:layout_height="match_parent"
     tools:context=".ui.player.PlayerFragment">
 
-    <TextView
-        android:id="@+id/titleTextView"
-        android:layout_width="0dp"
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/queueRecyclerView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/controls_container" />
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/controls_container"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginStart="32dp"
-        android:layout_marginTop="64dp"
-        android:layout_marginEnd="32dp"
-        android:text="Song Title"
-        android:textAlignment="center"
-        android:textAppearance="@style/TextAppearance.AppCompat.Large"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        android:padding="16dp"
+        app:layout_constraintBottom_toBottomOf="parent">
 
-    <TextView
-        android:id="@+id/artistTextView"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="Artist"
-        android:textAlignment="center"
-        app:layout_constraintEnd_toEndOf="@+id/titleTextView"
-        app:layout_constraintStart_toStartOf="@+id/titleTextView"
-        app:layout_constraintTop_toBottomOf="@+id/titleTextView" />
+        <TextView
+            android:id="@+id/titleTextView"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="Song Title"
+            android:textAlignment="center"
+            android:textAppearance="@style/TextAppearance.AppCompat.Large"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
 
-    <SeekBar
-        android:id="@+id/seekBar"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
-        app:layout_constraintEnd_toEndOf="@+id/titleTextView"
-        app:layout_constraintStart_toStartOf="@+id/titleTextView"
-        app:layout_constraintTop_toBottomOf="@+id/artistTextView" />
+        <TextView
+            android:id="@+id/artistTextView"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Artist"
+            android:textAlignment="center"
+            app:layout_constraintEnd_toEndOf="@+id/titleTextView"
+            app:layout_constraintStart_toStartOf="@+id/titleTextView"
+            app:layout_constraintTop_toBottomOf="@+id/titleTextView" />
 
-    <ImageButton
-        android:id="@+id/playPauseButton"
-        android:layout_width="64dp"
-        android:layout_height="64dp"
-        android:layout_marginTop="32dp"
-        android:src="@android:drawable/ic_media_play"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/seekBar" />
+        <SeekBar
+            android:id="@+id/seekBar"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            app:layout_constraintEnd_toEndOf="@+id/titleTextView"
+            app:layout_constraintStart_toStartOf="@+id/titleTextView"
+            app:layout_constraintTop_toBottomOf="@+id/artistTextView" />
 
-    <ImageButton
-        android:id="@+id/rewindButton"
-        android:layout_width="64dp"
-        android:layout_height="64dp"
-        android:layout_marginEnd="16dp"
-        android:src="@android:drawable/ic_media_rew"
-        app:layout_constraintBottom_toBottomOf="@+id/playPauseButton"
-        app:layout_constraintEnd_toStartOf="@+id/playPauseButton"
-        app:layout_constraintTop_toTopOf="@+id/playPauseButton" />
+        <ImageButton
+            android:id="@+id/playPauseButton"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:layout_marginTop="16dp"
+            android:src="@android:drawable/ic_media_play"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/seekBar" />
 
-    <ImageButton
-        android:id="@+id/fastForwardButton"
-        android:layout_width="64dp"
-        android:layout_height="64dp"
-        android:layout_marginStart="16dp"
-        android:src="@android:drawable/ic_media_ff"
-        app:layout_constraintBottom_toBottomOf="@+id/playPauseButton"
-        app:layout_constraintStart_toEndOf="@+id/playPauseButton"
-        app:layout_constraintTop_toTopOf="@+id/playPauseButton" />
+        <ImageButton
+            android:id="@+id/rewindButton"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:layout_marginEnd="16dp"
+            android:src="@android:drawable/ic_media_rew"
+            app:layout_constraintBottom_toBottomOf="@+id/playPauseButton"
+            app:layout_constraintEnd_toStartOf="@+id/playPauseButton"
+            app:layout_constraintTop_toTopOf="@+id/playPauseButton" />
+
+        <ImageButton
+            android:id="@+id/fastForwardButton"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:layout_marginStart="16dp"
+            android:src="@android:drawable/ic_media_ff"
+            app:layout_constraintBottom_toBottomOf="@+id/playPauseButton"
+            app:layout_constraintStart_toEndOf="@+id/playPauseButton"
+            app:layout_constraintTop_toTopOf="@+id/playPauseButton" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

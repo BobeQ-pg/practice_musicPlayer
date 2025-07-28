@@ -25,11 +25,16 @@ class SharedViewModel(application: Application) : AndroidViewModel(application) 
     private val folderRepository = FolderRepository(application)
     private val sortPreferences = SortPreferences(application)
 
-    private var currentSortOrder: SortOrder = sortPreferences.getSortOrder()
+    private var rawSongList: List<Song> = emptyList()
+    private val _currentSortOrder = MutableLiveData<SortOrder>()
+    val currentSortOrder: LiveData<SortOrder> get() = _currentSortOrder
 
     // --- LiveData for UI ---
-    private val _songs = MutableLiveData<List<Song>>()
-    val songs: LiveData<List<Song>> = _songs
+    private val _songs = MutableLiveData<List<LibraryItem>>()
+    val songs: LiveData<List<LibraryItem>> = _songs
+
+    private val _playlist = MutableLiveData<List<Song>>()
+    val playlist: LiveData<List<Song>> = _playlist
 
     private val _musicFolders = MutableLiveData<Set<String>>()
     val musicFolders: LiveData<Set<String>> = _musicFolders
@@ -88,6 +93,7 @@ class SharedViewModel(application: Application) : AndroidViewModel(application) 
 
     init {
         _musicFolders.value = folderRepository.getFolders()
+        _currentSortOrder.value = sortPreferences.getSortOrder()
         loadSongsFromSelectedFolders()
         Intent(application, MusicService::class.java).also { intent ->
             application.bindService(intent, connection, Context.BIND_AUTO_CREATE)
@@ -107,18 +113,84 @@ class SharedViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun setSortOrder(sortOrder: SortOrder) {
-        currentSortOrder = sortOrder
         sortPreferences.setSortOrder(sortOrder)
-        songs.value?.let { sortAndPostSongs(it) }
+        _currentSortOrder.value = sortOrder
+        sortAndPostSongs(rawSongList)
     }
 
     private fun sortAndPostSongs(songs: List<Song>) {
-        val sortedSongs = when (currentSortOrder) {
-            SortOrder.TITLE -> songs.sortedBy { it.title }
-            SortOrder.ARTIST -> songs.sortedBy { it.artist }
-            SortOrder.ALBUM -> songs.sortedBy { it.album }
+        val libraryItems = mutableListOf<LibraryItem>()
+        when (_currentSortOrder.value) {
+            SortOrder.TITLE -> {
+                val sortedSongs = songs.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
+                val groupedSongs = sortedSongs.groupBy { song -> getHeaderForTitle(song.title) }
+
+                // Custom sort order for headers
+                val headerOrder = listOf("#", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "ア", "カ", "サ", "タ", "ナ", "ハ", "マ", "ヤ", "ラ", "ワ", "漢字", "*")
+                val sortedGroupedSongs = groupedSongs.toSortedMap(compareBy { header -> headerOrder.indexOf(header).let { if (it == -1) headerOrder.size else it } })
+
+                sortedGroupedSongs.forEach { (header, songs) ->
+                    libraryItems.add(LibraryItem.HeaderItem(header))
+                    libraryItems.addAll(songs.map { LibraryItem.SongItem(it) })
+                }
+            }
+            SortOrder.ARTIST -> {
+                songs.sortedBy { it.artist }.groupBy { it.artist }.forEach { (artist, songs) ->
+                    libraryItems.add(LibraryItem.HeaderItem(artist))
+                    libraryItems.addAll(songs.map { LibraryItem.SongItem(it) })
+                }
+            }
+            SortOrder.ALBUM -> {
+                songs.sortedBy { it.album }.groupBy { it.album }.forEach { (album, songs) ->
+                    libraryItems.add(LibraryItem.HeaderItem(album))
+                    libraryItems.addAll(songs.map { LibraryItem.SongItem(it) })
+                }
+            }
+            null -> { /* Do nothing, wait for LiveData to be initialized */ }
         }
-        _songs.postValue(sortedSongs)
+        _songs.postValue(libraryItems)
+    }
+
+    private fun getHeaderForTitle(title: String): String {
+        if (title.isEmpty()) return "*"
+        val firstChar = title.first()
+
+        return when {
+            firstChar.isDigit() -> "#"
+            firstChar.uppercaseChar() in 'A'..'Z' -> firstChar.uppercaseChar().toString()
+            isJapaneseKana(firstChar) -> getKanaRowHeader(firstChar)
+            isKanji(firstChar) -> "漢字"
+            else -> "*"
+        }
+    }
+
+    private fun isJapaneseKana(char: Char): Boolean {
+        return char in '\u3040'..'\u309F' || char in '\u30A0'..'\u30FF'
+    }
+
+    private fun isKanji(char: Char): Boolean {
+        return char in '\u4E00'..'\u9FAF'
+    }
+
+    private fun getKanaRowHeader(char: Char): String {
+        val hiraganaChar = toHiragana(char)
+        return when (hiraganaChar) {
+            in 'あ'..'お' -> "ア"
+            in 'か'..'ご' -> "カ"
+            in 'さ'..'ぞ' -> "サ"
+            in 'た'..'ど' -> "タ"
+            in 'な'..'の' -> "ナ"
+            in 'は'..'ぽ' -> "ハ"
+            in 'ま'..'も' -> "マ"
+            in 'や'..'よ' -> "ヤ"
+            in 'ら'..'ろ' -> "ラ"
+            in 'わ'..'ん' -> "ワ"
+            else -> "*"
+        }
+    }
+
+    private fun toHiragana(char: Char): Char {
+        return if (char in '\u30A0'..'\u30FF') (char.code - 0x60).toChar() else char
     }
 
     private fun loadSongsFromSelectedFolders() {
@@ -137,7 +209,8 @@ class SharedViewModel(application: Application) : AndroidViewModel(application) 
             }
 
             retriever.release()
-            sortAndPostSongs(songList)
+            rawSongList = songList
+            sortAndPostSongs(rawSongList)
             withContext(Dispatchers.Main) {
                 _isScanning.value = false
             }
@@ -171,13 +244,16 @@ class SharedViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun playSong(song: Song) {
-        val playlist = songs.value?.filter { it.album == song.album } ?: listOf(song)
-        val songIndex = playlist.indexOf(song)
+        val songItems = rawSongList
+        val currentPlaylist = songItems.filter { it.album == song.album }
+        _playlist.value = currentPlaylist
+
+        val songIndex = currentPlaylist.indexOf(song)
 
         _nowPlaying.value = song
         val intent = Intent(getApplication(), MusicService::class.java).apply {
             action = "PLAY"
-            putParcelableArrayListExtra("PLAYLIST", ArrayList(playlist))
+            putParcelableArrayListExtra("PLAYLIST", ArrayList(currentPlaylist))
             putExtra("SONG_INDEX", songIndex)
         }
         getApplication<Application>().startService(intent)
