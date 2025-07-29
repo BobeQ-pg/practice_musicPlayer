@@ -44,6 +44,13 @@ class SettingsFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        // Apply insets to handle system bars
+        view.setOnApplyWindowInsetsListener { v, insets ->
+            val systemBarInsets = androidx.core.view.WindowInsetsCompat.toWindowInsetsCompat(insets, v).getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            v.setPadding(systemBarInsets.left, systemBarInsets.top, systemBarInsets.right, systemBarInsets.bottom)
+            insets
+        }
+
         val folderAdapter = FolderAdapter { uri ->
             showDeleteConfirmationDialog(uri)
         }
